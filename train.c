@@ -1,115 +1,154 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "linreg.h"
 
 #define BUFF_SIZE (size_t)(1024 * 1024 * 10)
-
 #define uint8 unsigned char
 
 
-typdef struct pair_t {
-	double x;
-	double y;
-} pair_t;
+void usage() { printf("Usage: ./train [data.csv]\n"); }
 
-typdef struct data_t {
-	pair_t*	entries;
-	char[256] labelx;
-	char[256] labely;
-} data_t;
+double estimate_t0(double t0, double t1, pair_t* entries, size_t m, double r) {
 
-void usage(){
-    printf("Usage: ./train [data.csv]\n");
+  double b = 0;
+  // summation
+  for (size_t i = 0; i < m; i++) {
+    b += t1 * entries[i].x + t0 - entries[i].y;
+  }
+  // compute average
+  b /= (double)m;
+  // multiply by learning rate
+  return r * b;
 }
 
-// minimal format validation for 2 columns
-int validate_csv(uint8* buff) {
+double estimate_t1(double t0, double t1, pair_t* entries, size_t m, double r) {
 
-	char* ptr = (char*)buff;
-	while(*ptr) {
-		// if virgule
-		if (*ptr == ',') {
-			ptr++;
-			//expect a new line, except if last ,
-			while (*ptr) {
-				if (*ptr == ',')
-					return 1;
-				else if (*ptr == '\n') {
-					ptr++;
-					break;
-				}
-				else
-					ptr++;
-			}
-		}
-		ptr++;
-	}
-	return 0;
+  double a = 0;
+  // summation
+  for (size_t i = 0; i < m; i++) {
+    a += (t1 * entries[i].x + t0 - entries[i].y) * entries[i].x;
+  }
+  // compute average
+  a /= (double)m;
+  // multiply by learning rate
+  return r * a;
 }
 
-void train(int n, double* theta0, double* theta1) {
+void train(int n, ctx_t* ctx) {
 
-	double t0 = 0, t1 = 0;
-
-	for (int i = 0; i < n; i++) {
-		printf("Epoch %d out of %d\n", i, n);
-
-	}
-	*theta0 = t0;
-	*theta1 = t1;
+  double tmp0 = 0, tmp1 = 0;
+  printf("Start           t0 = %lf, t1 = %lf\n", ctx->t0, ctx->t1);
+  for (int i = 0; i < n; i++) {
+    tmp0 = estimate_t0(ctx->t0, ctx->t1, ctx->entries, ctx->nentries, ctx->r);
+    tmp1 = estimate_t1(ctx->t0, ctx->t1, ctx->entries, ctx->nentries, ctx->r);
+    ctx->t0 = tmp0;
+    ctx->t1 = tmp1;
+    printf("Epoch %4d/%-4d t0 = %lf, t1 = %lf\n", i, n, ctx->t0, ctx->t1);
+  }
 }
 
 int save_variables(double t0, double t1) {
-	printf("Saving theta0(%lf) and theta1(%lf)\n", t0, t1);
-	FILE* f = fopen("vars.csv", "w+");
-	if (f == NULL) return 1;
-	int r = fprintf(f, "%lf,%lf\n", t0, t1);
-	if (r < 0) return 1;
-	fclose(f);
-	return 0;
+  printf("Saving theta0(%lf) and theta1(%lf)\n", t0, t1);
+  FILE *f = fopen("vars.csv", "w+");
+  if (f == NULL)
+    return 1;
+  int r = fprintf(f, "%lf,%lf\n", t0, t1);
+  if (r < 0)
+    return 1;
+  fclose(f);
+  return 0;
 }
 
-int main(int ac, char** av) {
+int parse_data(ctx_t *ctx, FILE *f) {
+  size_t len;
+  char *line = NULL; // VERY IMPORTANT !!!
 
-    if (ac != 2) {
-        usage();
-	return 1;
-    }
+  memset(ctx, 0, sizeof(ctx_t));
+  if (getline(&line, &len, f) > 0) {
+    sscanf(line, "%[^','],%s", ctx->labelx, ctx->labely);
+    free(line);
+    line = NULL;
+  }
 
-    // alloc BUFF_SIZE for file content
-    uint8* filebuff = calloc(1, BUFF_SIZE);
-    if (filebuff == NULL) {
-	    perror("allocation failed ");
-	    return 2;
-    }
-
-    FILE* f = fopen(av[1], "r");
-    if (f == NULL) {
-	    perror("Could not open data file");
-	    return 1;
-    }
-    fread(filebuff, BUFF_SIZE, 1, f);
+  size_t n = 0;
+  for (;;) {
+    size_t r = getline(&line, &len, f);
     if (ferror(f)) {
-	    perror("Error reading the data file");
-	    return 1;
+      perror("Error reading the data file");
+      return 1;
     }
-    
-    if (validate_csv(filebuff)) {
-	fprintf(stderr, "csv data file is wrong: expecting 2 columns\n");
-	exit(1);
+    // realloc every 1000 entries
+    if (n % 1000 == 0)
+    {
+      //  the first time, ctx->entries is NULL
+      ctx->entries = realloc(ctx->entries, (n == 0 ? 1 : (n/1000)) * 1000 * sizeof(pair_t));
     }
+    // building the pair
+    pair_t* p = &ctx->entries[n];
+    r = sscanf(line, "%lf,%lf\n", &p->x, &p->y);
+    free(line);
 
-    double t0, t1;
-    train(20, &t0, &t1);
-    
-    if (save_variables(t0, t1)) {
-	perror("could not save to file");
-	exit(2);
+    //end of file
+    if (r == 0) {break;}
+    // otherwise we expect exactly 2 floats in our format
+    if (r < 2) {
+      fprintf(stderr, "csv is malformed");
+      return 1;
     }
+    line = NULL;
+    n++;
+  }
+  ctx->nentries = n;
+  // scan names
+  return 0;
+}
 
-    fclose(f);
 
-    //system("xdg-open ./result.html");
-    return 0;
+int main(int ac, char **av) {
+
+  if (ac != 2) {
+    usage();
+    return 1;
+  }
+
+  FILE *f = fopen(av[1], "r");
+  if (f == NULL) {
+    perror("Could not open data file");
+    return 1;
+  }
+
+  // parse the data
+  ctx_t ctx;
+  if (parse_data(&ctx, f)) {
+    perror("Error while parsing data");
+    return 1;
+  }
+
+  printf("Context: x = %s, y = %s, nentries = %lu\n", ctx.labelx, ctx.labely, ctx.nentries);
+  printf("     %-20s %-20s\n", ctx.labelx, ctx.labely);
+  for (size_t i = 0; i < ctx.nentries; i++) {
+    printf("%-3lu: %-20lf %-20lf\n", i, ctx.entries[i].x, ctx.entries[i].y);
+  }
+
+  //learning rate
+  ctx.r = 0.02;
+  // run n epochs
+  train(20, &ctx);
+
+  if (save_variables(ctx.t0, ctx.t1)) {
+    perror("could not save to file");
+    exit(2);
+  }
+
+  if (gen_graph(&ctx)) {
+    perror("Error generating graph file");
+    return 1;
+  }
+
+  fclose(f);
+  free(ctx.entries);
+  return system("xdg-open ./result.html");
 }
