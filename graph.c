@@ -1,11 +1,10 @@
 #include "linreg.h"
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-double predict(ctx_t *ctx, double x) {
-  return ctx->t0 + ctx->t1 * x;
-}
+#define NGRAD 5
+
+double predict(ctx_t *ctx, double x) { return ctx->t0 + ctx->t1 * x; }
 
 double normed(double x, double min, double max) {
   return (x - min) / (max - min);
@@ -18,11 +17,11 @@ int gen_graph(ctx_t *ctx) {
     return 1;
   }
 
-  int h = 300;
-  int w = 500;
+  int h = 500;
+  int w = 900;
   // offset within the svg to draw
-  int offx = 20;
-  int offy = 20;
+  int offx = 100;
+  int offy = 50;
   double minx = ctx->minx;
   double maxx = ctx->maxx;
   double miny = ctx->miny;
@@ -52,14 +51,16 @@ int gen_graph(ctx_t *ctx) {
             h - (int)(h * normed(p[i].y, miny, maxy)) - offy);
   }
 
+  // horizontal axis
   fprintf(f,
           "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"#333333\" "
           "stroke-width=\"2\" />\n",
-          0, h - offy, w, h - offy);
+          offx - 3, h - offy, w, h - offy);
+  // vertical axis
   fprintf(f,
           "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"#333333\" "
           "stroke-width=\"2\" />\n",
-          offx, 0, offx, h);
+          offx, 0, offx, h - offy + 3);
 
   // double max = minx < maxx ? maxx : minx;
   double x1 = ctx->minx;
@@ -73,12 +74,51 @@ int gen_graph(ctx_t *ctx) {
           "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"#ff0000\" "
           "stroke-width=\"3\" />\n",
           // p1
-          (int)((double)w * normed(x1, minx, maxx)) + offx,
-          h - (int)((double)h * normed(y1, miny, maxy)) - offy,
+          (int)(w * normed(x1, minx, maxx)) + offx,
+          h - (int)(h * normed(y1, miny, maxy)) - offy,
           // p2
-          (int)((double)w * normed(x2, minx, maxx)) + offx,
-          h - (int)((double)h * normed(y2, miny, maxy)) - offy);
+          (int)(w * normed(x2, minx, maxx)) + offx,
+          h - (int)(h * normed(y2, miny, maxy)) - offy);
 
+  // text styling
+  fprintf(f, "<style>.scale {font-size: 10px;}</style>\n");
+  double interval = (maxx - minx) / 5.0;
+  // horizontal axis scale
+  for (int i = 0; i < NGRAD; i++) {
+
+    int posx = (int)(w * normed(minx + interval * i, minx, maxx)) + offx;
+    fprintf(f,
+            "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"#333333\" "
+            "stroke-width=\"2\" />\n",
+            posx, h - offy, posx, h - offy + 3);
+
+    fprintf(f, "<text x=\"%d\" y=\"%d\" class=\"scale\">%.2e</text>", posx - 30,
+            h - offy + 15, minx + interval * i);
+  }
+  // horizontal axis label
+  fprintf(f, "<text x=\"%d\" y=\"%d\" class=\"label\">%s</text>", w / 2, h - 15,
+          ctx->labelx);
+
+  // vertical axis scale
+  interval = (maxy - miny) / 5.0;
+  for (int i = 0; i < NGRAD; i++) {
+
+    int posy = (int)(h * normed(miny + interval * i, miny, maxy)) + offy;
+    fprintf(f,
+            "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"#333333\" "
+            "stroke-width=\"2\" />\n",
+            offx - 3, h - posy, offx, h - posy);
+
+    fprintf(f, "<text x=\"%d\" y=\"%d\" class=\"scale\">%.2e</text>", offx - 55,
+            h - posy + 3, miny + interval * i);
+  }
+  // horizontal axis label
+  fprintf(f,
+          "<text x=\"%d\" y=\"%d\" class=\"label\" transform=\"rotate(-90 %d "
+          "%d)\">%s</text>",
+          25, h / 2,
+          25, h / 2,
+          ctx->labely);
   fprintf(f, "</svg>\n");
   return 0;
 }
