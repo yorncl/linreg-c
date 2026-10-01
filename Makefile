@@ -1,10 +1,3 @@
-
-CC=gcc
-FLAGS= -Wall -Wextra -Werror -g -fsanitize=address
-
-all:
-	$(CC) $(FLAGS) train.c -o train
-
 CC=gcc
 CFLAGS= -Wall -Wextra -Werror -g -fsanitize=address
 
@@ -12,23 +5,26 @@ INC= -I.
 HEADERS=linreg.h
 
 
+OBJ_TRAIN=train.o graph.o util.o
+OBJ_PREDICT=util.o predict.o
+
 %.o:%.c  $(HEADERS) Makefile
 	$(CC) $(CFLAGS) $(INC)  -c $< $(LDFLAGS) -o $@
 
 
-train: train.o graph.o
-	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) train.o graph.o -o train
+train: $(OBJ_TRAIN)
+	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) $(OBJ_TRAIN) -o train
 
-predict: predict.o
-	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) -o $@
+predict: $(OBJ_PREDICT)
+	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) $(OBJ_PREDICT) -o predict
 
 all: train predict
 
 clean:
-	$(RM) $(OBJ)
+	$(RM) $(OBJ_TRAIN) $(OBJ_PREDICT)
 
 fclean: clean
-	$(RM) $(NAME)
+	$(RM) ./train ./predict ./vars.csv
 
 re: fclean all
 

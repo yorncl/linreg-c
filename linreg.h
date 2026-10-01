@@ -2,6 +2,7 @@
 #define LINREG
 
 #include <stdlib.h>
+#include <stdio.h>
 
 typedef struct pair_t {
   double x;
@@ -26,6 +27,7 @@ typedef struct ctx_t {
 } ctx_t;
 
 int gen_graph(ctx_t* ctx);
+int parse_data(ctx_t *ctx, FILE *f);
 
 #endif
 
