@@ -8,4 +8,4 @@ make
 ./predict #the oracle
 ```
 
-`train` will by default open result.html with `xdg-open`, and open a beautiful webpage with a cool svg graph of the data (I'm unemployed I can do what I want).
+`train` will by default open result.html with `xdg-open` (leading to your browser likely), a beautiful webpage with a cool svg graph of the data generated in C (I'm unemployed I can do what I want).
