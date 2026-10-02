@@ -7,7 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define NEPOCHS 5000
+#define NEPOCHS 10000
 
 void usage() { printf("Usage: ./train [data.csv]\n"); }
 
