@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 void var_file_error() {
   fprintf(stderr, "Variable file appears malformed, expecting a single line "
@@ -35,7 +34,7 @@ int main(void) {
   char *filename = "vars.csv";
   char *input;
   size_t len;
-
+  ssize_t r;
   // gather variables
   f = fopen(filename, "r");
   if (f == NULL) {
@@ -50,7 +49,7 @@ int main(void) {
   } else {
     char *line = NULL;
     // directory -> getline fails with EISDIR, so r == -1 covers it
-    ssize_t r = getline(&line, &len, f);
+    r = getline(&line, &len, f);
     if (r == -1 || (size_t)r != strlen(line) ||
         parse_data_line(line, &t0, &t1) || getline(&line, &len, f) != -1)
       var_file_error();
@@ -63,7 +62,6 @@ int main(void) {
   while (1) {
     printf("> ");
     input = NULL;
-    int r;
     if ((r = getline(&input, &len, stdin)) == -1) {
       free(input);
       break;
@@ -82,7 +80,7 @@ int main(void) {
     sscanf(input, "%lf", &x);
     free(input);
     double y = t0 + x * t1;
-    if (!finite(y))
+    if (!isfinite(y))
       fprintf(stderr,
               "The resulting number is not finite, try with another x;\n");
     else
