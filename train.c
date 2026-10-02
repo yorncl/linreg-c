@@ -163,16 +163,16 @@ int main(int ac, char **av) {
     printf("%-3lu: %-20lf %-20lf\n", i, ctx.entries[i].x, ctx.entries[i].y);
   }
 
-  compute_range(&ctx);
-  compute_normalized(&ctx);
-  ctx.t0 = 0;
-  ctx.t1 = 0;
-  // run n epochs
   if (ctx.nentries == 0) {
     fprintf(stderr, "What are we doing with our life? Nothing apparently, add "
                     "some entries\n");
     exit(1);
   }
+  compute_range(&ctx);
+  compute_normalized(&ctx);
+  ctx.t0 = 0;
+  ctx.t1 = 0;
+  // run n epochs
   train(NEPOCHS, &ctx);
 
   if (save_variables(ctx.t0, ctx.t1)) {

@@ -1,46 +1,92 @@
 #include "linreg.h"
+#include <ctype.h>
+#include <errno.h>
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/stat.h>
+
+void var_file_error() {
+  fprintf(stderr, "Variable file appears malformed, expecting a single line "
+                  "with finite doubles "
+                  "with format: \"%%lf,%%lf\n");
+  exit(1);
+}
+
+int valid_input(char *input) {
+  if (input[strspn(input, "0123456789+-.eE \t\r\n")] != '\0') {
+    return 0;
+  }
+  char *end;
+  double x = strtod(input, &end);
+  while (isspace((unsigned char)*end))
+    end++;
+  if (*end != '\0' || !isfinite(x))
+    return 0;
+  return 1;
+}
 
 int main(void) {
 
   double t0, t1;
   FILE *f;
   double x;
-  char input[512];
   char *filename = "vars.csv";
+  char *input;
+  size_t len;
 
-  if (access(filename, F_OK) != 0) {
-    perror("Could not access variable file");
+  // gather variables
+  f = fopen(filename, "r");
+  if (f == NULL) {
+    if (errno != ENOENT) { // exists but can't be read: refuse
+      perror("Could not read variable file");
+      return 1;
+    }
+    perror("WARNING: Could not access variable file");
     printf("Setting t0 and t1 to 0\n");
     t0 = 0;
     t1 = 0;
   } else {
-    f = fopen(filename, "r");
-    if (f == NULL) {
-      perror("Error reading variable file");
-      return 1;
-    }
-    if (fscanf(f, "%lf,%lf", &t0, &t1) != 2) {
-      fprintf(
-          stderr,
-          "Variable file looks malformed, expected format: \"%%lf,%%lf\"\n");
-      return 1;
-    }
+    char *line = NULL;
+    // directory -> getline fails with EISDIR, so r == -1 covers it
+    ssize_t r = getline(&line, &len, f);
+    if (r == -1 || (size_t)r != strlen(line) ||
+        parse_data_line(line, &t0, &t1) || getline(&line, &len, f) != -1)
+      var_file_error();
+    free(line);
+    fclose(f);
   }
 
+  // predict input loop
   printf("Enter x, get a y, it's that simple\n");
   while (1) {
     printf("> ");
-    memset(input, 0, 512);
-    if (fgets(input, 512, stdin) == NULL)
+    input = NULL;
+    int r;
+    if ((r = getline(&input, &len, stdin)) == -1) {
+      free(input);
       break;
-    if (sscanf(input, "%lf\n", &x) != 1) {
-      printf("Hmmm, are you sure you put a number in?\n");
+    }
+    if (input[strspn(input, " \t\r\n")] == '\0') {
+      free(input);
       continue;
     }
-    printf("y = %lf\n", t0 + x * t1);
+    // check with strlen against r read bytes, in case of a null byte in the
+    // middle
+    if ((size_t)r != strlen(input) || !valid_input(input)) {
+      fprintf(stderr, "Please enter a valid number\n");
+      free(input);
+      continue;
+    }
+    sscanf(input, "%lf", &x);
+    free(input);
+    double y = t0 + x * t1;
+    if (!finite(y))
+      fprintf(stderr,
+              "The resulting number is not finite, try with another x;\n");
+    else
+      printf("y = %.17g\n", y);
   }
   return 0;
 }
