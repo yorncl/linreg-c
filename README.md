@@ -7,5 +7,4 @@ make
 ./train [data.csv] #train on data
 ./predict #the oracle
 ```
-
-`train` will by default open result.html with `xdg-open` (leading to your browser likely), a beautiful webpage with a cool svg graph of the data generated in C (I'm unemployed I can do what I want).
+`train` will generate a svg file that is included by result.html, just open it with your favorite browser to get cool vizualzz!!!
